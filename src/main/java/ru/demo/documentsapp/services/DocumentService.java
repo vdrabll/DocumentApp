@@ -1,9 +1,5 @@
 package ru.demo.documentsapp.services;
 
-import io.minio.GetObjectArgs;
-import io.minio.MinioClient;
-import io.minio.PutObjectArgs;
-import io.minio.RemoveObjectArgs;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -18,7 +14,6 @@ import ru.demo.documentsapp.entities.Document;
 import ru.demo.documentsapp.exceptions.NotFoundException;
 import ru.demo.documentsapp.repositories.DocumentRepository;
 
-import java.io.InputStream;
 import java.sql.Date;
 import java.time.LocalDate;
 import java.util.List;
@@ -30,11 +25,8 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class DocumentService {
 
-    @Value("${minio.bucket}")
-    private String bucket;
-
     private final DocumentRepository documentRepository;
-    private final MinioClient minioClient;
+    private final MinioStorageService minioService;
 
     @Transactional(readOnly = true)
     public Page<Document> findAll(String name, String extension, Long fileSize, String mimeType, Pageable pageable) {
@@ -70,12 +62,12 @@ public class DocumentService {
 
     @Transactional
     public Document save(MultipartFile file, String name, String description) {
-        String extension = getExtension(file);
+        String extension = minioService.getExtension(file);
         if (documentRepository.existsByNameAndExtensionAndSizeAndMimeType(name, extension, file.getSize(), file.getContentType())) {
             throw new IllegalStateException("There is already a document with the same parameters");
         }
         UUID uuid = UUID.randomUUID();
-        saveFile(file, extension, uuid);
+        minioService.saveFile(file, extension, uuid);
         Document document = Document.builder()
                 .id(uuid)
                 .name(name)
@@ -88,19 +80,6 @@ public class DocumentService {
         return documentRepository.save(document);
     }
 
-    private void saveFile(MultipartFile file, String extension, UUID uuid) {
-        String name = uuid.toString() + "." + extension;
-        try {
-            var stream = file.getInputStream();
-            minioClient.putObject(PutObjectArgs.builder()
-                    .bucket(bucket)
-                    .object(name)
-                    .stream(stream, stream.available(), -1)
-                    .build());
-        } catch (Exception e) {
-            throw new IllegalStateException(e.getMessage());
-        }
-    }
 
     @Transactional(readOnly = true)
     public Document findById(UUID id) {
@@ -111,17 +90,10 @@ public class DocumentService {
     @Transactional
     public Document updateDocument(UUID id, String name, String description, MultipartFile file) {
         Document document = findById(id);
-        String extension = getExtension(file);
+        String extension = minioService.getExtension(file);
         String filename = id.toString() + "." + extension;
-        try {
-            minioClient.removeObject(RemoveObjectArgs.builder()
-                    .bucket(bucket)
-                    .object(filename)
-                    .build());
-        } catch (Exception e) {
-            throw new IllegalStateException(e.getMessage());
-        }
-        saveFile(file, extension, id);
+        minioService.removeFile(filename);
+        minioService.saveFile(file, extension, id);
         document.setName(name);
         document.setDescription(description);
         document.setExtension(extension);
@@ -136,39 +108,13 @@ public class DocumentService {
         Document document = findById(id);
         String name = id.toString() + "." + document.getExtension();
         documentRepository.delete(document);
-        try {
-            minioClient.removeObject(RemoveObjectArgs.builder()
-                    .bucket(bucket)
-                    .object(name)
-                    .build());
-        } catch (Exception e) {
-            throw new IllegalStateException(e.getMessage());
-        }
-    }
-
-    private String getExtension(MultipartFile file) {
-        try {
-            return Objects
-                    .requireNonNull(file.getOriginalFilename())
-                    .substring(file.getOriginalFilename().lastIndexOf(".") + 1);
-        } catch (RuntimeException e) {
-            throw new IllegalArgumentException("Bad extension");
-        }
+        minioService.removeFile(name);
     }
 
     @Transactional(readOnly = true)
     public InputStreamResource getDocument(String filename) {
         resolveFilename(filename);
-        try {
-            InputStream stream = minioClient.getObject(GetObjectArgs
-                    .builder()
-                    .bucket(bucket)
-                    .object(filename)
-                    .build());
-            return new InputStreamResource(stream);
-        } catch (Exception e) {
-            throw new IllegalStateException(e.getMessage());
-        }
+        return minioService.getObject(filename);
     }
 
     @Transactional(readOnly = true)

@@ -22,7 +22,8 @@
     <button class="btn btn-primary mb-3" onclick="openAddDocumentPage()">Add Document</button>
 
     <div class="mb-3">
-        <label for="searchInput"></label><input type="text" id="searchInput" class="form-control" placeholder="Search documents...">
+        <label for="searchInput"></label><input type="text" id="searchInput" class="form-control"
+                                                placeholder="Search documents...">
     </div>
     <table id="document-table" class="table table-striped">
         <thead>
@@ -150,7 +151,6 @@
         rows.forEach(row => row.style.display = 'table-row');
     }
 }
-
 
 document.getElementById('searchInput').addEventListener('input', function() {
     const query = this.value.trim().toLowerCase();
