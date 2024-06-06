@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document List</title>
+
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        /* Style for fixed-width cells with clipped content */
+        .fixed-width-cell {
+            max-width: 200px; /* Adjust the width as needed */
+            overflow: hidden;
+            white-space: nowrap;
+            text-overflow: ellipsis;
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+    <h1 class="mt-5 mb-4">Document List</h1>
+    <button class="btn btn-primary mb-3" onclick="openAddDocumentPage()">Add Document</button>
+
+    <div class="mb-3">
+        <label for="searchInput"></label><input type="text" id="searchInput" class="form-control" placeholder="Search documents...">
+    </div>
+    <table id="document-table" class="table table-striped">
+        <thead>
+        <tr>
+            <th>Name</th>
+            <th>Description</th>
+            <th>Link</th>
+            <th>Created Date</th>
+            <th>Extension</th>
+            <th>MIME-Type</th>
+            <th>Size</th>
+            <th>Actions</th>
+        </tr>
+        </thead>
+        <tbody id="document-table-body"></tbody>
+    </table>
+    <nav aria-label="Page navigation">
+        <ul id="pagination" class="pagination"></ul>
+    </nav>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+<script>
+    function tag(tagName) {
+        return document.createElement(tagName);
+    }
+
+    function humanFileSize(size) {
+        const i = size === 0 ? 0 : Math.floor(Math.log(size) / Math.log(1024));
+        return +((size / Math.pow(1024, i)).toFixed(2)) * 1 + ' ' + ['B', 'kB', 'MB', 'GB', 'TB'][i];
+    }
+
+    function openAddDocumentPage() {
+        window.location.href = 'document-add-update';
+    }
+
+    async function deleteDocument(documentId) {
+        try {
+            const response = await fetch(`/document/${documentId}`, {
+                method: 'DELETE'
+            });
+
+            if (response.ok) {
+                alert('Document deleted successfully!');
+            } else {
+                alert('Failed to delete document.');
+            }
+        } catch (error) {
+            console.error('Error deleting document details:', error);
+        }
+        window.location.reload();
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+
+        async function fetchDocuments(pageNumber = 0, pageSize = 10) {
+            try {
+                const response = await axios.get(`/documents?page=${pageNumber}&size=${pageSize}`);
+                const documentTableBody = document.getElementById('document-table-body');
+                documentTableBody.innerHTML = '';
+                response.data.content.forEach(data => {
+                    const tr = tag('tr');
+                    const filename = `${data.id}.${data.extension}`;
+                    tr.innerHTML = `
+                            <td class="fixed-width-cell">${data.name}</td>
+                            <td class="fixed-width-cell">${data.description}</td>
+                            <td class="fixed-width-cell"><a href="/document/${filename}">link</a></td>
+                            <td class="fixed-width-cell">${data.createdDate}</td>
+                            <td class="fixed-width-cell">${data.extension}</td>
+                            <td class="fixed-width-cell">${data.mimeType}</td>
+                            <td class="fixed-width-cell">${humanFileSize(data.size)}</td>
+                            <td>
+                                <a class="btn btn-primary btn-sm" href="details?id=${data.id}">Info</a>
+                                <button class="btn btn-danger btn-sm" onclick="deleteDocument('${data.id}')">Delete</button>
+                            </td>
+
+                        `;
+                    documentTableBody.appendChild(tr);
+                });
+
+                const paginationDiv = document.getElementById('pagination');
+                paginationDiv.innerHTML = '';
+                for (let i = 0; i < response.data.totalPages; i++) {
+                    const button = document.createElement('button');
+                    button.textContent = i + 1;
+                    button.classList.add('page-link');
+                    const li = document.createElement('li');
+                    li.classList.add('page-item');
+                    li.appendChild(button);
+                    button.addEventListener('click', () => fetchDocuments(i, pageSize));
+                    paginationDiv.appendChild(li);
+                }
+            } catch (error) {
+                console.error('Error fetching documents:', error);
+            }
+        }
+
+
+        fetchDocuments();
+    });
+
+    function filterDocuments(query) {
+    const rows = document.querySelectorAll('#document-table-body tr');
+
+    if (query) {
+
+        rows.forEach(row => {
+            const cells = row.querySelectorAll('td');
+            const firstCellText = cells[0].textContent.toLowerCase();
+            if (firstCellText.includes(query.toLowerCase())) {
+                row.style.display = 'table-row';
+            } else {
+                row.style.display = 'none';
+            }
+        });
+    } else {
+        rows.forEach(row => row.style.display = 'table-row');
+    }
+}
+
+
+document.getElementById('searchInput').addEventListener('input', function() {
+    const query = this.value.trim().toLowerCase();
+    filterDocuments(query);
+});
+</script>
+</body>
+</html>
