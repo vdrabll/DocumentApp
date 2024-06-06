@@ -125,18 +125,25 @@
         fetchDocuments();
     });
 
+
+
     function filterDocuments(query) {
     const rows = document.querySelectorAll('#document-table-body tr');
 
     if (query) {
-
         rows.forEach(row => {
             const cells = row.querySelectorAll('td');
-            const firstCellText = cells[0].textContent.toLowerCase();
-            if (firstCellText.includes(query.toLowerCase())) {
-                row.style.display = 'table-row';
-            } else {
+            let found = false;
+            cells.forEach(cell => {
+                if (cell.textContent.toLowerCase().includes(query.toLowerCase())) {
+                    found = true;
+                    return;
+                }
+            });
+            if (!found) {
                 row.style.display = 'none';
+            } else {
+                row.style.display = 'table-row';
             }
         });
     } else {
